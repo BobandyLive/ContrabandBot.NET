@@ -83,7 +83,7 @@ namespace SysBot.Pokemon
 
         public static bool HasAdName(T pk, out string ad)
         {
-            string pattern = @"(PKHeX)|(AuSLove)|(ShinyMart)|(Blainette)|(PPorg)|(JokersWrath)|(bot$)|(PKMGen)";
+            string pattern = @"(YT$)|(YT\w*$)|(\.\w*$)|(PKHeX)|(FB:)|(AuSLove)|(ShinyMart)|(Blainette)|(\ com)|(\ org)|(\ net)|(2DOS3)|(PPorg)|(Tik\wok$)|(YouTube)|(IG:)|(TTV\ )|(JokersWrath)|(bot$)|(PKMGen)|(.gg)";
             bool ot = Regex.IsMatch(pk.OT_Name, pattern, RegexOptions.IgnoreCase);
             bool nick = Regex.IsMatch(pk.Nickname, pattern, RegexOptions.IgnoreCase);
             ad = ot ? pk.OT_Name : nick ? pk.Nickname : "";
