@@ -3,9 +3,20 @@
 
 ## Support Discords:
 
-For specific support for this fork of kwsch's SysBot.NET repo feel free to join! (No support will be provided in the official PKHeX Discord, please don't bother the devs)
+This fork was created because I felt that some of the OT and nickname restrictions implemented in vanilla SysBot.NET were a little bit too extreme.
+Most of the obvious advertising and spam filters remain, but many of the more harmless filters with less potential for abuse have been removed.
+I also have implemented a Twitch subscriber only mode toggle. The way you wish to use this is up to you.
 
-[<img src="https://discordapp.com/api/guilds/695809740428673034/embed.png?style=banner2">](https://discord.gg/KrPRNk9)
+PLEASE BE AWARE:
+The PKHeX development Discord server may consider this to be a violation of their policy on advertising.
+You may be banned from their server if you're hosting a bot with this modified code.
+You've been warned.
+
+Also, do not bug the original Sysbot or Forkbot devs with any problems you have with this fork.
+
+All code is provided as-is, but if you have any issues or questions feel free to join my Discord server to ask.
+
+[<img src="https://discordapp.com/api/guilds/678647727306833946/embed.png?style=banner2">](https://discord.gg/bobandyslab)
 
 [USB-Botbase](https://github.com/Koi-3088/USB-Botbase) client for remote USB control for this fork.
 
