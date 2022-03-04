@@ -11,7 +11,7 @@ namespace SysBot.Pokemon.Discord
     {
         private const uint MaxTradeCode = 9999_9999;
 
-        public static async Task AddToQueueAsync(SocketCommandContext context, int code, string trainer, RequestSignificance sig, T trade, PokeRoutineType routine, PokeTradeType type, SocketUser trader, int catchID = 0)
+        public static async Task AddToQueueAsync(SocketCommandContext context, int code, string trainer, RequestSignificance sig, T trade, PokeRoutineType routine, PokeTradeType type, SocketUser trader)
         {
             if ((uint)code > MaxTradeCode)
             {
@@ -19,30 +19,19 @@ namespace SysBot.Pokemon.Discord
                 return;
             }
 
-            IUserMessage test;
             try
             {
                 const string helper = "I've added you to the queue! I'll message you here when your trade is starting.";
-                test = await trader.SendMessageAsync(helper).ConfigureAwait(false);
-            }
-            catch (HttpException ex)
-            {
-                await context.Channel.SendMessageAsync($"{ex.HttpCode}: {ex.Reason}!").ConfigureAwait(false);
-                var noAccessMsg = context.User == trader ? "You must enable private messages in order to be queued!" : "The mentioned user must enable private messages in order for them to be queued!";
-                await context.Channel.SendMessageAsync(noAccessMsg).ConfigureAwait(false);
-                return;
-            }
+                IUserMessage test = await trader.SendMessageAsync(helper).ConfigureAwait(false);
 
-            // Try adding
-            var result = AddToTradeQueue(context, trade, code, trainer, sig, routine, type, trader, out var msg, catchID);
+                // Try adding
+                var result = AddToTradeQueue(context, trade, code, trainer, sig, routine, type, trader, out var msg);
 
-            // Notify in channel
-            await context.Channel.SendMessageAsync(msg).ConfigureAwait(false);
-            // Notify in PM to mirror what is said in the channel.
-            await trader.SendMessageAsync($"{msg}\nYour trade code will be **{code:0000 0000}**.").ConfigureAwait(false);
+                // Notify in channel
+                await context.Channel.SendMessageAsync(msg).ConfigureAwait(false);
+                // Notify in PM to mirror what is said in the channel.
+                await trader.SendMessageAsync($"{msg}\nYour trade code will be **{code:0000 0000}**.").ConfigureAwait(false);
 
-            try
-            {
                 // Clean Up
                 if (result)
                 {
@@ -58,30 +47,16 @@ namespace SysBot.Pokemon.Discord
             }
             catch (HttpException ex)
             {
-                string message;
-                // Check if the exception was raised due to missing "Manage Messages" permissions. Ping the bot host if so.
-                var permissions = context.Guild.CurrentUser.GetPermissions(context.Channel as IGuildChannel);
-                if (!permissions.ManageMessages)
-                {
-                    var app = await context.Client.GetApplicationInfoAsync().ConfigureAwait(false);
-                    var owner = app.Owner.Id;
-                    message = $"<@{owner}> You must grant me \"Manage Messages\" permissions!";
-                }
-                else
-                {
-                    // Send a generic error message if we're not missing "Manage Messages" permissions.
-                    message = $"{ex.HttpCode}: {ex.Reason}!";
-                }
-                await context.Channel.SendMessageAsync(message).ConfigureAwait(false);
+                await HandleDiscordExceptionAsync(context, trader, ex).ConfigureAwait(false);
             }
         }
 
-        public static async Task AddToQueueAsync(SocketCommandContext context, int code, string trainer, RequestSignificance sig, T trade, PokeRoutineType routine, PokeTradeType type, int catchID = 0)
+        public static async Task AddToQueueAsync(SocketCommandContext context, int code, string trainer, RequestSignificance sig, T trade, PokeRoutineType routine, PokeTradeType type)
         {
-            await AddToQueueAsync(context, code, trainer, sig, trade, routine, type, context.User, catchID).ConfigureAwait(false);
+            await AddToQueueAsync(context, code, trainer, sig, trade, routine, type, context.User).ConfigureAwait(false);
         }
 
-        private static bool AddToTradeQueue(SocketCommandContext context, T pk, int code, string trainerName, RequestSignificance sig, PokeRoutineType type, PokeTradeType t, SocketUser trader, out string msg, int catchID = 0)
+        private static bool AddToTradeQueue(SocketCommandContext context, T pk, int code, string trainerName, RequestSignificance sig, PokeRoutineType type, PokeTradeType t, SocketUser trader, out string msg)
         {
             var user = trader;
             var userID = user.Id;
@@ -102,9 +77,6 @@ namespace SysBot.Pokemon.Discord
                 return false;
             }
 
-            if (detail.Type == PokeTradeType.TradeCord)
-                TradeCordHelper<T>.TradeCordTrades.Add(trader.Id, catchID);
-
             var position = Info.CheckPosition(userID, type);
 
             var ticketID = "";
@@ -112,8 +84,8 @@ namespace SysBot.Pokemon.Discord
                 ticketID = $", unique ID: {detail.ID}";
 
             var pokeName = "";
-            if ((t == PokeTradeType.Specific || t == PokeTradeType.TradeCord || t == PokeTradeType.SupportTrade || t == PokeTradeType.Giveaway) && pk.Species != 0)
-                pokeName = $" Receiving: {(t == PokeTradeType.SupportTrade && pk.Species != (int)Species.Ditto && pk.HeldItem != 0 ? $"{(Species)pk.Species} ({ShowdownParsing.GetShowdownText(pk).Split('@','\n')[1].Trim()})" : $"{(Species)pk.Species}")}.";
+            if (t == PokeTradeType.Specific && pk.Species != 0)
+                pokeName = $" Receiving: {(Species)pk.Species}.";
             msg = $"{user.Mention} - Added to the {type} queue{ticketID}. Current Position: {position.Position}.{pokeName}";
 
             var botct = Info.Hub.Bots.Count;
@@ -123,6 +95,43 @@ namespace SysBot.Pokemon.Discord
                 msg += $" Estimated: {eta:F1} minutes.";
             }
             return true;
+        }
+
+        private static async Task HandleDiscordExceptionAsync(SocketCommandContext context, SocketUser trader, HttpException ex)
+        {
+            string message = string.Empty;
+            switch (ex.DiscordCode)
+            {
+                case DiscordErrorCode.InsufficientPermissions or DiscordErrorCode.MissingPermissions:
+                    {
+                        // Check if the exception was raised due to missing "Send Messages" or "Manage Messages" permissions. Nag the bot owner if so.
+                        var permissions = context.Guild.CurrentUser.GetPermissions(context.Channel as IGuildChannel);
+                        if (!permissions.SendMessages)
+                        {
+                            // Nag the owner in logs.
+                            message = "You must grant me \"Send Messages\" permissions!";
+                            Base.LogUtil.LogError(message, "QueueHelper");
+                            return;
+                        }
+                        else if (!permissions.ManageMessages)
+                        {
+                            var app = await context.Client.GetApplicationInfoAsync().ConfigureAwait(false);
+                            var owner = app.Owner.Id;
+                            message = $"<@{owner}> You must grant me \"Manage Messages\" permissions!";
+                        }
+                    }; break;
+                case DiscordErrorCode.CannotSendMessageToUser:
+                    {
+                        // The user either has DMs turned off, or Discord thinks they do.
+                        message = context.User == trader ? "You must enable private messages in order to be queued!" : "The mentioned user must enable private messages in order for them to be queued!";
+                    }; break;
+                default:
+                    {
+                        // Send a generic error message.
+                        message = ex.DiscordCode != null ? $"Discord error {(int)ex.DiscordCode}: {ex.Reason}" : $"Http error {(int)ex.HttpCode}: {ex.Message}";
+                    }; break;
+            }
+            await context.Channel.SendMessageAsync(message).ConfigureAwait(false);
         }
     }
 }
