@@ -791,5 +791,6 @@ namespace SysBot.Pokemon
             Name = name,
             Comment = $"Added automatically on {DateTime.Now:yyyy.MM.dd-hh:mm:ss} ({comment})",
         };
+
     }
 }
