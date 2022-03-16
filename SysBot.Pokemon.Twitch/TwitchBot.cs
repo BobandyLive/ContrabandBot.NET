@@ -199,23 +199,25 @@ namespace SysBot.Pokemon.Twitch
             client.SendWhisper(msg.Username, response);
         }
 
+        private static bool IsSubscriber(ChatMessage c) => c.IsSubscriber;
         private string HandleCommand(TwitchLibMessage m, string c, string args, bool whisper)
         {
             bool sudo() => m is ChatMessage ch && (ch.IsBroadcaster || Settings.IsSudo(m.Username));
             bool subscriber() => m is ChatMessage {IsSubscriber: true};
+            bool disallowed() => Settings.SubscriberMode && !((m is ChatMessage ch && IsSubscriber(ch)) || sudo());
 
             switch (c)
             {
                 // User Usable Commands
-                case "trade":
+                case "trade" when !disallowed():
                     var _ = TwitchCommandsHelper<T>.AddToWaitingList(args, m.DisplayName, m.Username, ulong.Parse(m.UserId), subscriber(), out string msg);
                     return msg;
-                case "ts":
+                case "ts" when !disallowed():
                     return $"@{m.Username}: {Info.GetPositionString(ulong.Parse(m.UserId))}";
-                case "tc":
+                case "tc" when !disallowed():
                     return $"@{m.Username}: {TwitchCommandsHelper<T>.ClearTrade(ulong.Parse(m.UserId))}";
 
-                case "code" when whisper:
+                case "code" when whisper && !disallowed():
                     return TwitchCommandsHelper<T>.GetCode(ulong.Parse(m.UserId));
 
                 // Sudo Only Commands
